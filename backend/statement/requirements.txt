@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+beautifulsoup4
+sentence-transformers
+numpy
+ollama
+torch
+pdfplumber
