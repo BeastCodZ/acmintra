@@ -1,0 +1,34 @@
+# Dataset — too large for GitHub (23GB)
+ml/dataset/
+
+# Python virtual environment
+ml/venv/
+
+# Keras model files — large binaries
+ml/models/*.keras
+ml/models/saved_model/
+ml/models/saved_model_v2/
+model_backups/**/*.keras
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.python-version
+
+# acmintra frontend deps
+acmintra_ref/frontend/node_modules/
+acmintra_ref/frontend/.next/
+
+# acmintra backend env / cache
+acmintra_ref/backend/statement/__pycache__/
+acmintra_ref/backend/statement/*.pyc
+acmintra_ref/backend/statement/venv/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
