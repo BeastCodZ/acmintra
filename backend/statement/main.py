@@ -1,7 +1,8 @@
 from fastapi import (
     FastAPI,
     UploadFile,
-    File
+    File,
+    HTTPException
 )
 from fastapi.middleware.cors import (
     CORSMiddleware
@@ -40,50 +41,52 @@ def root():
 async def analyze(
     file: UploadFile = File(...)
 ):
-    content = await file.read()
-    transactions = parse_statement(content, file.filename)
+    try:
+        content = await file.read()
+        transactions = parse_statement(content, file.filename)
 
-    entity_stats = {}
-    for tx in transactions:
-        if tx["drcr"].upper() == "DR":
-            other_party_id = tx["receiver"]
-            other_party_name = tx["display_name"] or other_party_id
-        else:
-            other_party_id = tx["receiver"]
-            other_party_name = tx["display_name"] or other_party_id
-        
-        if other_party_name not in entity_stats:
-            entity_stats[other_party_name] = {"total_dr": 0, "total_cr": 0, "tx_count": 0, "id": other_party_id}
-        
-        if tx["status"].upper() == "SUCCESS":
-            if tx["drcr"].upper() == "DR":
-                entity_stats[other_party_name]["total_dr"] += tx["amount"]
-            else:
-                entity_stats[other_party_name]["total_cr"] += tx["amount"]
-            entity_stats[other_party_name]["tx_count"] += 1
+        if not transactions:
+            raise HTTPException(status_code=422, detail="No transactions found. Make sure you uploaded a BHIM UPI HTML or bank PDF statement.")
 
-    for tx in transactions:
-        other_party_name = tx["display_name"] or tx["receiver"]
-        tx["category"] = categorize(
-            tx["receiver"], 
-            tx.get("display_name"),
-            entity_stats.get(other_party_name)
-        )
+        entity_stats = {}
+        for tx in transactions:
+            other_party_id = tx.get("receiver", "")
+            other_party_name = tx.get("display_name") or other_party_id
+            if other_party_name not in entity_stats:
+                entity_stats[other_party_name] = {"total_dr": 0, "total_cr": 0, "tx_count": 0, "id": other_party_id}
+            if tx.get("status", "").upper() == "SUCCESS":
+                if tx.get("drcr", "").upper() == "DR":
+                    entity_stats[other_party_name]["total_dr"] += tx.get("amount", 0)
+                else:
+                    entity_stats[other_party_name]["total_cr"] += tx.get("amount", 0)
+                entity_stats[other_party_name]["tx_count"] += 1
 
-    profile = build_profile(transactions)
-    risk = calculate_scores(transactions)
-    health = calculate_financial_health(profile, risk)
+        for tx in transactions:
+            other_party_name = tx.get("display_name") or tx.get("receiver", "")
+            tx["category"] = categorize(
+                tx.get("receiver", ""),
+                tx.get("display_name"),
+                entity_stats.get(other_party_name)
+            )
 
-    rag.index_intelligence(profile["rag_docs"])
-    risk_explanations = rag.batch_ask(risk["flags"])
+        profile = build_profile(transactions)
+        risk = calculate_scores(transactions)
+        health = calculate_financial_health(profile, risk)
 
-    return {
-        "transactions": transactions,
-        "profile": profile,
-        "risk": risk,
-        "health": health,
-        "risk_explanations": risk_explanations
-    }
+        rag.index_intelligence(profile.get("rag_docs", {"summaries": [], "profiles": [], "observations": []}))
+        risk_explanations = rag.batch_ask(risk.get("flags", []))
+
+        return {
+            "transactions": transactions,
+            "profile": profile,
+            "risk": risk,
+            "health": health,
+            "risk_explanations": risk_explanations
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):

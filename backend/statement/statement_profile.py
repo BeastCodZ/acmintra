@@ -5,7 +5,11 @@ from datetime import datetime
 def build_profile(transactions):
     successful = [tx for tx in transactions if tx["status"].upper() == "SUCCESS"]
     if not successful:
-        return {"transaction_count": 0, "monthly_trends": {}, "recurring_patterns": []}
+        return {
+            "transaction_count": 0, "total_dr": 0, "total_cr": 0, "avg_transaction": 0,
+            "monthly_trends": {}, "recurring_patterns": [],
+            "rag_docs": {"summaries": [], "profiles": [], "observations": []}
+        }
     monthly_data = {}
     for tx in successful:
         try:

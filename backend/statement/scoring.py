@@ -17,10 +17,10 @@ def calculate_financial_health(profile, risk_data):
             insights.append("Your spending-to-income ratio is healthy.")
     else:
         insights.append("No income detected in this statement period.")
-    if profile["transaction_count"] > 200:
+    if profile.get("transaction_count", 0) > 200:
         score -= 5
         insights.append("High transaction volume detected. This might make tracking expenses difficult.")
-    if profile["avg_transaction"] > 5000:
+    if profile.get("avg_transaction", 0) > 5000:
         score -= 10
         insights.append("Average transaction size is high. Watch out for large impulsive purchases.")
     contribution_flags = [f for f in risk_data["flags"] if "split payments" in f.lower()]
