@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CashGuard — Currency Authentication</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #09090b;
+      --surface: rgba(255,255,255,0.05);
+      --surface-2: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.08);
+      --text: #fafafa;
+      --text-secondary: rgba(255,255,255,0.6);
+      --text-muted: rgba(255,255,255,0.35);
+      --genuine: #22c55e;
+      --genuine-bg: rgba(34,197,94,0.1);
+      --genuine-border: rgba(34,197,94,0.25);
+      --fake: #ef4444;
+      --fake-bg: rgba(239,68,68,0.1);
+      --fake-border: rgba(239,68,68,0.25);
+      --warn: #f97316;
+      --warn-bg: rgba(249,115,22,0.1);
+      --warn-border: rgba(249,115,22,0.25);
+      --uncertain: #eab308;
+      --uncertain-bg: rgba(234,179,8,0.1);
+      --uncertain-border: rgba(234,179,8,0.25);
+      --accent: #6366f1;
+      --accent-glow: rgba(99,102,241,0.4);
+      --radius: 20px;
+      --radius-sm: 12px;
+    }
+
+    html { font-size: 16px; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated mesh background ───────────────────────────────────── */
+    .mesh-bg {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;
+      overflow: hidden; pointer-events: none;
+    }
+    .mesh-orb {
+      position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.3;
+    }
+    .mesh-orb.o1 { width: 600px; height: 600px; background: #6366f1; top: -200px; left: -100px; animation: float1 20s ease-in-out infinite; }
+    .mesh-orb.o2 { width: 500px; height: 500px; background: #8b5cf6; bottom: -150px; right: -100px; animation: float2 25s ease-in-out infinite; }
+    .mesh-orb.o3 { width: 400px; height: 400px; background: #06b6d4; top: 40%; left: 50%; animation: float3 18s ease-in-out infinite; }
+    @keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(80px,60px)} }
+    @keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-60px,-80px)} }
+    @keyframes float3 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-40px,50px)} }
+
+    .page-content { position: relative; z-index: 1; }
+
+    /* ── Navbar ──────────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+      background: rgba(9,9,11,0.7);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--text);
+      text-decoration: none;
+    }
+    .nav-logo svg { width: 28px; height: 28px; }
+    .nav-links { display: flex; gap: 4px; }
+    .nav-links a {
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      text-decoration: none; transition: all 0.2s;
+      padding: 7px 14px; border-radius: 10px; cursor: pointer;
+    }
+    .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+    .nav-links a.nav-active {
+      color: var(--text); background: rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
+    }
+    .nav-badge {
+      font-size: 12px; font-weight: 600; color: var(--genuine);
+      background: var(--genuine-bg); border: 1px solid var(--genuine-border);
+      padding: 5px 14px; border-radius: 100px;
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%,100% { box-shadow: 0 0 8px rgba(34,197,94,0.15); }
+      50% { box-shadow: 0 0 20px rgba(34,197,94,0.3); }
+    }
+    @media (max-width: 640px) { .nav-links { display: none; } }
+
+    /* ── About section ── */
+    .about-section {
+      max-width: 900px; margin: 0 auto; padding: 0 24px 80px; display: none;
+    }
+    .about-section.show { display: block; }
+    .about-hero {
+      text-align: center; padding: 40px 0 48px;
+    }
+    .about-hero h2 { font-size: clamp(28px,4vw,44px); font-weight: 700; letter-spacing: -0.03em; margin-bottom: 14px;
+      background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.55) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .about-hero p { font-size: 15px; color: var(--text-secondary); max-width: 500px; margin: 0 auto; line-height: 1.7; }
+    .about-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
+    @media (max-width: 700px) { .about-grid { grid-template-columns: 1fr; } }
+    .about-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px 22px;
+    }
+    .about-card-icon { font-size: 28px; margin-bottom: 14px; }
+    .about-card h3 { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .about-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.65; }
+    .about-tech { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; margin-bottom: 20px; }
+    .about-tech h3 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 18px; }
+    .about-tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .about-tech-item { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+    .about-tech-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .about-tech-desc { font-size: 10px; color: var(--text-muted); }
+    .about-privacy {
+      background: linear-gradient(135deg, rgba(34,197,94,0.07) 0%, rgba(34,197,94,0.03) 100%);
+      border: 1px solid rgba(34,197,94,0.2); border-radius: var(--radius); padding: 24px 28px;
+      display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    }
+    .about-privacy-icon { font-size: 36px; flex-shrink: 0; }
+    .about-privacy h3 { font-size: 16px; font-weight: 700; color: var(--genuine); margin-bottom: 4px; }
+    .about-privacy p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+    .about-built { text-align: center; padding: 32px 0; }
+    .about-built p { font-size: 13px; color: var(--text-muted); }
+    .about-built strong { color: var(--text); }
+
+    /* ── Hero ────────────────────────────────────────────────────────── */
+    .hero {
+      max-width: 1100px; margin: 0 auto;
+      padding: 140px 24px 60px;
+      text-align: center;
+    }
+    .hero-eyebrow {
+      font-size: 12px; font-weight: 600; color: var(--accent);
+      text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px;
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2);
+      padding: 6px 16px; border-radius: 100px;
+    }
+    .hero-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 2s ease-in-out infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .hero h1 {
+      font-size: clamp(36px, 5.5vw, 64px);
+      font-weight: 700; letter-spacing: -0.04em;
+      line-height: 1.08; margin-bottom: 20px;
+      background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.6) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      font-size: 17px; color: var(--text-secondary);
+      max-width: 520px; margin: 0 auto 48px; line-height: 1.7;
+    }
+
+    .hero-stats {
+      display: flex; justify-content: center; gap: 2px;
+      margin-bottom: 56px;
+    }
+    .hero-stat {
+      text-align: center; padding: 20px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .hero-stat:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+    .hero-stat:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+    .hero-stat:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+    .hero-stat-value {
+      font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--text);
+    }
+    .hero-stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    @media (max-width: 640px) { .hero-stats { gap: 2px; flex-wrap: wrap; } .hero-stat { padding: 14px 20px; } .hero-stat-value { font-size: 20px; } }
+
+    /* ── Upload Card ─────────────────────────────────────────────────── */
+    .scanner-section {
+      max-width: 640px; margin: 0 auto; padding: 0 24px 80px;
+    }
+    .upload-card {
+      background: var(--surface);
+      border: 1.5px dashed rgba(255,255,255,0.12);
+      border-radius: var(--radius);
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.08) 0%, transparent 60%);
+      opacity: 0; transition: opacity 0.4s;
+    }
+    .upload-card:hover {
+      border-color: rgba(99,102,241,0.3);
+      box-shadow: 0 0 40px rgba(99,102,241,0.08), 0 8px 32px rgba(0,0,0,0.2);
+      transform: translateY(-2px);
+    }
+    .upload-card:hover::before { opacity: 1; }
+
+    .upload-icon {
+      width: 64px; height: 64px; border-radius: 16px;
+      background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2);
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-bottom: 20px; font-size: 26px;
+      position: relative;
+    }
+    .upload-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 8px; position: relative; }
+    .upload-sub { font-size: 13px; color: var(--text-muted); position: relative; }
+
+    #preview {
+      width: 100%; display: none;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .preview-status {
+      padding: 16px 20px;
+      font-size: 13px; color: var(--text-secondary);
+      background: rgba(255,255,255,0.03);
+      border-top: 1px solid var(--border);
+      display: none;
+    }
+    .preview-status.show { display: flex; align-items: center; gap: 8px; }
+
+    input[type="file"] { display: none; }
+
+    /* ── Result ──────────────────────────────────────────────────────── */
+    .result-card {
+      background: rgba(255,255,255,0.03);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      margin-top: 16px;
+      overflow: hidden;
+      display: none;
+      backdrop-filter: blur(20px);
+      animation: slideUp 0.4s ease-out;
+    }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .result-card.show { display: block; }
+
+    .result-header {
+      padding: 28px 24px;
+      display: flex; align-items: flex-start; gap: 16px;
+    }
+    .result-header.genuine  { background: var(--genuine-bg); border-bottom: 1px solid var(--genuine-border); }
+    .result-header.fake     { background: var(--fake-bg);    border-bottom: 1px solid var(--fake-border); }
+    .result-header.uncertain{ background: var(--uncertain-bg);border-bottom: 1px solid var(--uncertain-border); }
+    .result-header.demonetized { background: var(--warn-bg); border-bottom: 1px solid var(--warn-border); }
+
+    .result-icon-wrap {
+      width: 52px; height: 52px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; flex-shrink: 0;
+    }
+    .result-icon-wrap.genuine  { background: rgba(34,197,94,0.15); box-shadow: 0 0 20px rgba(34,197,94,0.2); }
+    .result-icon-wrap.fake     { background: rgba(239,68,68,0.15); box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+    .result-icon-wrap.uncertain{ background: rgba(234,179,8,0.15); box-shadow: 0 0 20px rgba(234,179,8,0.2); }
+    .result-icon-wrap.demonetized { background: rgba(249,115,22,0.15); box-shadow: 0 0 20px rgba(249,115,22,0.2); }
+
+    .result-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .result-meta {
+      font-size: 12px; color: var(--text-muted); margin-top: 6px;
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    .result-meta span {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(255,255,255,0.05); padding: 2px 8px; border-radius: 6px;
+    }
+    .result-msg {
+      padding: 16px 24px; font-size: 14px; line-height: 1.7;
+      color: var(--text-secondary);
+    }
+
+    /* Confidence bar */
+    .conf-section { padding: 0 24px 20px; }
+    .conf-track { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+    .conf-fill { height: 100%; border-radius: 2px; transition: width 0.8s cubic-bezier(0.16,1,0.3,1); }
+    .conf-fill.genuine { background: var(--genuine); box-shadow: 0 0 12px rgba(34,197,94,0.4); }
+    .conf-fill.fake { background: var(--fake); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+    .conf-fill.uncertain { background: var(--uncertain); box-shadow: 0 0 12px rgba(234,179,8,0.4); }
+    .conf-fill.demonetized { background: var(--warn); box-shadow: 0 0 12px rgba(249,115,22,0.4); }
+
+    /* ── Heatmap ────────────────────────────────────────────────────── */
+    .heatmap-section {
+      padding: 20px 24px; border-top: 1px solid var(--border); display: none;
+    }
+    .heatmap-section.show { display: block; }
+    .section-label {
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 12px;
+    }
+    #heatmapCanvas { width: 100%; border-radius: var(--radius-sm); }
+    #heatmapStatus { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
+    /* ── Feature rows ───────────────────────────────────────────────── */
+    .features-section { border-top: 1px solid var(--border); }
+    .features-label {
+      padding: 20px 24px 12px;
+      font-size: 11px; font-weight: 600; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1.2px;
+    }
+
+    .feat {
+      border-top: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.2s;
+    }
+    .feat.critical { background: var(--fake-bg); }
+    .feat-top {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 24px; cursor: pointer;
+    }
+    .feat-top:hover { background: rgba(255,255,255,0.03); }
+    .feat-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; flex-shrink: 0;
+    }
+    .feat-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .feat-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .feat-right { text-align: right; flex-shrink: 0; }
+    .feat-badge {
+      font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 100px;
+      display: inline-block;
+    }
+    .feat-badge.genuine  { background: var(--genuine-bg); color: var(--genuine); border: 1px solid var(--genuine-border); }
+    .feat-badge.fake     { background: var(--fake-bg);    color: var(--fake);    border: 1px solid var(--fake-border); }
+    .feat-badge.uncertain{ background: var(--uncertain-bg);color: var(--uncertain);border: 1px solid var(--uncertain-border); }
+    .feat-conf { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+    .feat-critical-tag {
+      font-size: 9px; font-weight: 700; color: var(--fake);
+      background: var(--fake-bg); border: 1px solid var(--fake-border);
+      padding: 2px 7px; border-radius: 4px; margin-right: 6px;
+    }
+
+    .feat-detail { display: none; padding: 0 24px 20px 76px; }
+    .feat.expanded .feat-detail { display: block; animation: slideUp 0.3s ease-out; }
+
+    .feat-detail-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-bottom: 14px; overflow: hidden; }
+    .feat-detail-fill { height: 100%; border-radius: 2px; }
+    .feat-detail-fill.genuine  { background: var(--genuine); }
+    .feat-detail-fill.fake     { background: var(--fake); }
+    .feat-detail-fill.uncertain{ background: var(--uncertain); }
+
+    .feat-why { font-size: 13px; color: var(--text-secondary); line-height: 1.65; margin-bottom: 14px; }
+    .feat-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+    .cmp {
+      padding: 12px 14px; border-radius: var(--radius-sm);
+      font-size: 12px; line-height: 1.6; color: var(--text-secondary);
+    }
+    .cmp.g { background: var(--genuine-bg); border: 1px solid var(--genuine-border); }
+    .cmp.f { background: var(--fake-bg);    border: 1px solid var(--fake-border); }
+    .cmp-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .cmp-label.g { color: var(--genuine); }
+    .cmp-label.f { color: var(--fake); }
+    .feat-matters {
+      font-size: 12px; color: var(--text-muted); line-height: 1.65;
+      padding-top: 12px; border-top: 1px solid var(--border);
+    }
+
+    /* ── Bottom actions ──────────────────────────────────────────────── */
+    .actions { margin-top: 20px; text-align: center; }
+    .btn-scan {
+      font-family: inherit;
+      font-size: 15px; font-weight: 600;
+      padding: 14px 40px; border-radius: 100px;
+      border: none; cursor: pointer;
+      background: var(--accent); color: white;
+      transition: all 0.2s;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .btn-scan:hover { background: #818cf8; box-shadow: 0 0 30px var(--accent-glow); transform: translateY(-1px); }
+    .btn-scan:active { transform: scale(0.98) translateY(0); }
+
+    /* ── Privacy footer ──────────────────────────────────────────────── */
+    .privacy-footer {
+      max-width: 640px; margin: 0 auto; padding: 0 24px 60px;
+      display: flex; justify-content: center; gap: 24px;
+    }
+    .privacy-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-muted);
+    }
+    .privacy-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--genuine); flex-shrink: 0;
+      box-shadow: 0 0 6px rgba(34,197,94,0.5);
+    }
+
+    /* ── Spinner ──────────────────────────────────────────────────────── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Mode tabs ───────────────────────────────────────────────────── */
+    .mode-tabs {
+      display: flex; justify-content: center; gap: 4px;
+      max-width: 420px; margin: 0 auto 40px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 4px;
+    }
+    .mode-tab {
+      flex: 1; padding: 10px 20px; border-radius: 10px; border: none;
+      background: transparent; color: var(--text-muted);
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .mode-tab.active { background: var(--accent); color: white; box-shadow: 0 0 16px var(--accent-glow); }
+    .mode-tab:not(.active):hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+    /* ══════════════════════════════════════════════════════════════════
+       FINANCIAL HEALTH TAB — Full Dashboard
+    ══════════════════════════════════════════════════════════════════ */
+    .fin-section { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; display: none; }
+    .fin-section.show { display: block; }
+
+    /* Upload state */
+    .fin-upload-wrap { max-width: 600px; margin: 0 auto; }
+    .fin-backend-notice {
+      background: rgba(234,179,8,0.07); border: 1px solid rgba(234,179,8,0.18);
+      border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 16px;
+      font-size: 12px; color: var(--uncertain); display: flex; gap: 10px; align-items: flex-start; line-height: 1.6;
+    }
+    .fin-backend-notice code { background: rgba(255,255,255,0.06); padding: 1px 7px; border-radius: 5px; font-family: monospace; font-size: 11px; color: #a5b4fc; }
+    .fin-upload-card {
+      background: var(--surface); border: 1.5px dashed rgba(255,255,255,0.12);
+      border-radius: var(--radius); padding: 60px 32px; text-align: center;
+      cursor: pointer; transition: all 0.3s ease;
+    }
+    .fin-upload-card:hover { border-color: rgba(99,102,241,0.35); transform: translateY(-2px); box-shadow: 0 0 40px rgba(99,102,241,0.08); }
+    .fin-upload-card .upload-icon { background: rgba(6,182,212,0.1); border-color: rgba(6,182,212,0.2); margin-bottom: 18px; }
+    .fin-upload-card h3 { font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+    .fin-upload-card p { font-size: 13px; color: var(--text-muted); }
+    .fin-upload-formats { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+    .fin-fmt-tag { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 100px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-muted); }
+
+    /* Loading */
+    .fin-loading { text-align: center; padding: 80px 24px; display: none; }
+    .fin-loading.show { display: block; }
+    .fin-loading .spinner { margin: 0 auto 20px; width: 36px; height: 36px; border-width: 3px; }
+    .fin-loading-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .fin-loading-sub { font-size: 13px; color: var(--text-muted); }
+    .fin-loading-steps { display: flex; justify-content: center; gap: 20px; margin-top: 24px; }
+    .fin-step { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .fin-step.done { color: var(--genuine); }
+    .fin-step.active { color: var(--accent); }
+
+    /* Results wrapper */
+    .fin-results { display: none; }
+    .fin-results.show { display: block; }
+
+    /* ── Score banner ── */
+    .fin-score-banner {
+      background: linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(6,182,212,0.08) 100%);
+      border: 1px solid rgba(99,102,241,0.2); border-radius: var(--radius);
+      padding: 28px 32px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+    }
+    .fin-score-left { display: flex; align-items: center; gap: 24px; }
+    .fin-score-ring { position: relative; width: 88px; height: 88px; flex-shrink: 0; }
+    .fin-score-ring svg { transform: rotate(-90deg); }
+    .fin-score-ring-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .fin-score-num { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+    .fin-score-denom { font-size: 10px; color: var(--text-muted); }
+    .fin-score-info h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); margin-bottom: 4px; }
+    .fin-score-info p { font-size: 13px; color: var(--text-muted); max-width: 320px; line-height: 1.5; }
+    .fin-score-stats { display: flex; gap: 24px; }
+    .fin-score-stat { text-align: right; }
+    .fin-score-stat-val { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .fin-score-stat-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .fin-score-stat-val.green { color: var(--genuine); }
+    .fin-score-stat-val.red { color: var(--fake); }
+
+    /* ── Top metrics row ── */
+    .fin-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+    @media (max-width: 900px) { .fin-kpis { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 540px) { .fin-kpis { grid-template-columns: repeat(2, 1fr); } }
+    .fin-kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px 16px; }
+    .fin-kpi-lbl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 10px; }
+    .fin-kpi-val { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+    .fin-kpi-sub { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+    .fin-kpi-val.green { color: var(--genuine); }
+    .fin-kpi-val.red { color: var(--fake); }
+    .fin-kpi-val.cyan { color: #06b6d4; }
+    .fin-kpi-val.purple { color: #a78bfa; }
+
+    /* ── Main 3-col layout ── */
+    .fin-main { display: grid; grid-template-columns: 1fr 320px; gap: 16px; margin-bottom: 16px; }
+    @media (max-width: 900px) { .fin-main { grid-template-columns: 1fr; } }
+    .fin-side { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Card shell ── */
+    .fin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .fin-card-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .fin-card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); }
+    .fin-card-badge { font-size: 10px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 100px; }
+
+    /* ── Ledger table ── */
+    .fin-table-wrap { max-height: 420px; overflow-y: auto; }
+    .fin-table-wrap::-webkit-scrollbar { width: 3px; }
+    .fin-table-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    .fin-table { width: 100%; border-collapse: collapse; }
+    .fin-table th { padding: 10px 16px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); position: sticky; top: 0; background: rgba(9,9,11,0.95); border-bottom: 1px solid var(--border); backdrop-filter: blur(8px); }
+    .fin-table td { padding: 11px 16px; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle; }
+    .fin-table tbody tr:hover td { background: rgba(255,255,255,0.025); }
+    .tx-name { font-weight: 600; color: var(--text); font-size: 12px; }
+    .tx-ref { font-size: 9px; color: var(--text-muted); margin-top: 2px; font-family: monospace; }
+    .tx-amt-dr { color: var(--text); font-weight: 700; font-family: monospace; }
+    .tx-amt-cr { color: var(--genuine); font-weight: 700; font-family: monospace; }
+    .fin-cat { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 100px; }
+    .fin-cat.person { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .fin-cat.merchant { background: rgba(6,182,212,0.15); color: #22d3ee; }
+    .fin-cat.others { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+    .fin-cat.unknown { background: rgba(234,179,8,0.1); color: var(--uncertain); }
+
+    /* ── Donut chart ── */
+    .fin-donut-wrap { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .fin-donut-svg { overflow: visible; }
+    .fin-donut-legend { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+    .fin-legend-row { display: flex; align-items: center; justify-content: space-between; }
+    .fin-legend-left { display: flex; align-items: center; gap: 8px; }
+    .fin-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .fin-legend-label { font-size: 12px; color: var(--text-secondary); }
+    .fin-legend-pct { font-size: 11px; font-weight: 700; color: var(--text); }
+
+    /* ── Spend bars (top people/merchants) ── */
+    .fin-bars { padding: 4px 0; }
+    .fin-bar-row { padding: 10px 20px; display: flex; flex-direction: column; gap: 5px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .fin-bar-row:last-child { border-bottom: none; }
+    .fin-bar-top { display: flex; justify-content: space-between; align-items: center; }
+    .fin-bar-name { font-size: 12px; font-weight: 600; color: var(--text); }
+    .fin-bar-amt { font-size: 12px; font-weight: 700; color: var(--text); font-family: monospace; }
+    .fin-bar-track { height: 4px; background: rgba(255,255,255,0.06); border-radius: 100px; overflow: hidden; }
+    .fin-bar-fill { height: 100%; border-radius: 100px; transition: width 1s cubic-bezier(.4,0,.2,1); }
+    .fin-bar-sub { font-size: 10px; color: var(--text-muted); }
+
+    /* ── Insights & flags ── */
+    .fin-insight-list { padding: 8px 0; }
+    .fin-insight-item { padding: 10px 20px; display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 12px; color: var(--text-secondary); line-height: 1.55; }
+    .fin-insight-item:last-child { border-bottom: none; }
+    .fin-insight-item .fi-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .fin-insight-item.good { color: var(--genuine); }
+    .fin-insight-item.warn { color: var(--uncertain); }
+    .fin-insight-item.bad { color: var(--fake); }
+    .fin-flag-item { margin: 0 16px 10px; padding: 10px 14px; background: var(--fake-bg); border: 1px solid var(--fake-border); border-radius: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--fake); font-weight: 600; }
+    .fin-flag-item:last-child { margin-bottom: 16px; }
+
+    /* ── Chat ── */
+    .fin-chat-wrap { display: flex; flex-direction: column; height: 400px; }
+    .fin-chat-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .fin-chat-msgs::-webkit-scrollbar { width: 3px; }
+    .fin-chat-msgs::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+    .fin-bubble { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 12px; line-height: 1.55; font-weight: 500; }
+    .fin-bubble.user { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .fin-bubble.bot { background: rgba(255,255,255,0.07); color: var(--text); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .fin-chat-suggestions { padding: 0 16px 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .fin-chat-chip { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 100px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); color: #a5b4fc; cursor: pointer; transition: all 0.2s; }
+    .fin-chat-chip:hover { background: rgba(99,102,241,0.2); }
+    .fin-chat-form { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+    .fin-chat-input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 13px; color: var(--text); font-family: inherit; outline: none; transition: border-color 0.2s; }
+    .fin-chat-input:focus { border-color: rgba(99,102,241,0.4); }
+    .fin-chat-input::placeholder { color: var(--text-muted); }
+    .fin-chat-send { background: var(--accent); border: none; border-radius: 10px; padding: 0 16px; color: white; font-size: 16px; cursor: pointer; transition: all 0.2s; }
+    .fin-chat-send:hover { background: #818cf8; }
+    .fin-chat-typing { padding: 6px 16px; font-size: 10px; color: #06b6d4; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; animation: pulse-glow 1.5s ease-in-out infinite; display: none; }
+    .fin-chat-typing.show { display: block; }
+
+    /* ── Rescan button ── */
+    .fin-rescan { text-align: center; padding: 8px 0 0; }
+    .fin-rescan-btn { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: 10px; padding: 10px 20px; cursor: pointer; transition: all 0.2s; }
+    .fin-rescan-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+
+  <!-- Animated mesh background -->
+  <div class="mesh-bg">
+    <div class="mesh-orb o1"></div>
+    <div class="mesh-orb o2"></div>
+    <div class="mesh-orb o3"></div>
+  </div>
+
+  <div class="page-content">
+
+  <!-- Navbar -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        CashGuard
+      </a>
+      <div class="nav-links">
+        <a id="navScan"    onclick="navGo('scan')"       class="nav-active">Scan</a>
+        <a id="navAbout"   onclick="navGo('about')">About</a>
+      </div>
+      <span class="nav-badge">100% On-Device</span>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-eyebrow" id="heroEyebrow">Currency Authentication</div>
+    <h1 id="heroTitle">Verify any Indian<br>banknote instantly</h1>
+    <p id="heroSub">AI-powered counterfeit detection that runs entirely in your browser. Upload a photo — get an instant verdict with detailed security feature analysis.</p>
+
+    <!-- Mode Tabs -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tabScan" onclick="switchMode('scan')">🛡️ Scan Note</button>
+      <button class="mode-tab" id="tabHealth" onclick="switchMode('health')">📊 Financial Health</button>
+    </div>
+
+    <div class="hero-stats" id="heroStats">
+      <div class="hero-stat">
+        <div class="hero-stat-value">95%</div>
+        <div class="hero-stat-label">Accuracy</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">&lt;2s</div>
+        <div class="hero-stat-label">Scan time</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">7</div>
+        <div class="hero-stat-label">Denominations</div>
+      </div>
+      <div class="hero-stat">
+        <div class="hero-stat-value">0</div>
+        <div class="hero-stat-label">Data uploaded</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Scanner -->
+  <section class="scanner-section">
+
+    <div class="upload-card" id="uploadCard" onclick="document.getElementById('fileInput').click()">
+      <div class="upload-icon">📷</div>
+      <div class="upload-title">Upload a currency note</div>
+      <div class="upload-sub">Drop an image here or click to browse — JPG, PNG, WEBP</div>
+    </div>
+
+    <img id="preview" alt="uploaded note" />
+
+    <div class="preview-status" id="previewStatus">
+      <div class="spinner"></div>
+      <span id="statusText">Analysing…</span>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <!-- Result Card -->
+    <div class="result-card" id="resultCard">
+
+      <div class="result-header" id="resultHeader">
+        <div class="result-icon-wrap" id="resultIconWrap"><span id="resultIcon"></span></div>
+        <div>
+          <div class="result-title" id="resultLabel"></div>
+          <div class="result-meta" id="resultMeta"></div>
+        </div>
+      </div>
+
+      <div class="result-msg" id="resultMsg"></div>
+
+      <div class="conf-section">
+        <div class="conf-track">
+          <div class="conf-fill" id="confBar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="heatmap-section" id="heatmapSection">
+        <div class="section-label">AI Attention Map</div>
+        <canvas id="heatmapCanvas"></canvas>
+        <div id="heatmapStatus"></div>
+      </div>
+
+      <div class="features-section">
+        <div class="features-label">RBI Security Feature Analysis</div>
+        <div id="featureRows"></div>
+      </div>
+
+    </div>
+
+    <div class="actions">
+      <button class="btn-scan" onclick="document.getElementById('fileInput').click()">Scan Another Note</button>
+    </div>
+  </section>
+
+  <!-- Financial Health Section -->
+  <section class="fin-section" id="finSection">
+    <input type="file" id="finFileInput" accept=".html,.pdf" style="display:none" />
+
+    <!-- ── Upload state ── -->
+    <div id="finUploadWrap" class="fin-upload-wrap">
+      <div class="fin-backend-notice">
+        <span>⚡</span>
+        <div>Requires the local backend — run once: <code>cd acmintra_ref/backend/statement && python -m uvicorn main:app --port 8000</code></div>
+      </div>
+      <div class="fin-upload-card" onclick="document.getElementById('finFileInput').click()">
+        <div class="upload-icon">📄</div>
+        <h3>Upload Bank Statement</h3>
+        <p>Your data stays 100% on your device — nothing is sent to the cloud</p>
+        <div class="fin-upload-formats">
+          <span class="fin-fmt-tag">Kotak PDF</span>
+          <span class="fin-fmt-tag">BHIM UPI HTML</span>
+          <span class="fin-fmt-tag">Bank PDF</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Loading state ── -->
+    <div class="fin-loading" id="finLoading">
+      <div class="spinner"></div>
+      <div class="fin-loading-title" id="finLoadingTitle">Parsing your statement…</div>
+      <div class="fin-loading-sub" id="finLoadingSub">Reading transactions</div>
+      <div class="fin-loading-steps">
+        <div class="fin-step" id="fstep1">📄 Parse</div>
+        <div class="fin-step" id="fstep2">🏷️ Categorise</div>
+        <div class="fin-step" id="fstep3">🧠 Analyse</div>
+        <div class="fin-step" id="fstep4">✅ Done</div>
+      </div>
+    </div>
+
+    <!-- ── Results ── -->
+    <div class="fin-results" id="finResults">
+
+      <!-- Score banner -->
+      <div class="fin-score-banner">
+        <div class="fin-score-left">
+          <div class="fin-score-ring">
+            <svg width="88" height="88" viewBox="0 0 88 88" class="fin-donut-svg">
+              <circle cx="44" cy="44" r="36" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="8"/>
+              <circle id="finScoreArc" cx="44" cy="44" r="36" fill="none" stroke="#6366f1" stroke-width="8"
+                stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="226"/>
+            </svg>
+            <div class="fin-score-ring-num">
+              <span class="fin-score-num" id="finScoreNum">—</span>
+              <span class="fin-score-denom">/100</span>
+            </div>
+          </div>
+          <div class="fin-score-info">
+            <h2 id="finScoreLabel">Financial Health</h2>
+            <p id="finScoreDesc">Upload a statement to see your score.</p>
+          </div>
+        </div>
+        <div class="fin-score-stats">
+          <div class="fin-score-stat">
+            <div class="fin-score-stat-val green" id="finBannerCr">—</div>
+            <div class="fin-score-stat-lbl">Total In</div>
+          </div>
+          <div class="fin-score-stat">
+            <div class="fin-score-stat-val red" id="finBannerDr">—</div>
+            <div class="fin-score-stat-lbl">Total Out</div>
+          </div>
+          <div class="fin-score-stat">
+            <div class="fin-score-stat-val" id="finBannerNet">—</div>
+            <div class="fin-score-stat-lbl">Net</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="fin-kpis">
+        <div class="fin-kpi">
+          <div class="fin-kpi-lbl">Transactions</div>
+          <div class="fin-kpi-val" id="kpiTxCount">—</div>
+          <div class="fin-kpi-sub">this period</div>
+        </div>
+        <div class="fin-kpi">
+          <div class="fin-kpi-lbl">Avg. Transaction</div>
+          <div class="fin-kpi-val cyan" id="kpiAvgTx">—</div>
+          <div class="fin-kpi-sub">per debit</div>
+        </div>
+        <div class="fin-kpi">
+          <div class="fin-kpi-lbl">Person Transfers</div>
+          <div class="fin-kpi-val purple" id="kpiPersonDr">—</div>
+          <div class="fin-kpi-sub">sent to people</div>
+        </div>
+        <div class="fin-kpi">
+          <div class="fin-kpi-lbl">Merchant Spend</div>
+          <div class="fin-kpi-val" id="kpiMerchant">—</div>
+          <div class="fin-kpi-sub">shops & services</div>
+        </div>
+        <div class="fin-kpi">
+          <div class="fin-kpi-lbl">Savings Rate</div>
+          <div class="fin-kpi-val" id="kpiSavings">—</div>
+          <div class="fin-kpi-sub">of income kept</div>
+        </div>
+      </div>
+
+      <!-- Main layout -->
+      <div class="fin-main">
+
+        <!-- Left: ledger -->
+        <div class="fin-card">
+          <div class="fin-card-header">
+            <span class="fin-card-title">Transaction Ledger</span>
+            <span class="fin-card-badge" id="finTxCount">0 transactions</span>
+          </div>
+          <div class="fin-table-wrap">
+            <table class="fin-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Recipient / Sender</th>
+                  <th style="text-align:right">Amount</th>
+                  <th>Category</th>
+                </tr>
+              </thead>
+              <tbody id="finTxBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right sidebar -->
+        <div class="fin-side">
+
+          <!-- Donut: spend breakdown -->
+          <div class="fin-card">
+            <div class="fin-card-header"><span class="fin-card-title">Spend Breakdown</span></div>
+            <div class="fin-donut-wrap">
+              <svg id="finDonutSvg" width="140" height="140" viewBox="0 0 140 140" class="fin-donut-svg"></svg>
+              <div class="fin-donut-legend" id="finDonutLegend"></div>
+            </div>
+          </div>
+
+          <!-- Top spenders -->
+          <div class="fin-card">
+            <div class="fin-card-header"><span class="fin-card-title">Top Recipients</span></div>
+            <div class="fin-bars" id="finTopBars"></div>
+          </div>
+
+          <!-- Insights -->
+          <div class="fin-card">
+            <div class="fin-card-header"><span class="fin-card-title">Insights</span></div>
+            <div class="fin-insight-list" id="finInsightList"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Chat — full width -->
+      <div class="fin-card" style="margin-bottom:20px">
+        <div class="fin-card-header">
+          <span class="fin-card-title">Ask About Your Spending</span>
+          <span class="fin-card-badge">Powered by local AI</span>
+        </div>
+        <div class="fin-chat-wrap">
+          <div class="fin-chat-msgs" id="finChatMsgs">
+            <div class="fin-bubble bot">👋 Statement loaded! Ask me anything about your transactions.</div>
+          </div>
+          <div class="fin-chat-typing" id="finChatTyping">Thinking…</div>
+          <div class="fin-chat-suggestions" id="finChatChips"></div>
+          <form class="fin-chat-form" onsubmit="finSendChat(event)">
+            <input type="text" class="fin-chat-input" id="finChatInput" placeholder="e.g. Who did I spend the most on?" />
+            <button type="submit" class="fin-chat-send">↵</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Rescan -->
+      <div class="fin-rescan">
+        <button class="fin-rescan-btn" onclick="finReset()">📄 Analyse Another Statement</button>
+      </div>
+
+    </div><!-- /fin-results -->
+  </section><!-- /fin-section -->
+
+  <!-- About Section -->
+  <section class="about-section" id="aboutSection">
+    <div class="about-hero">
+      <h2>Built for India's<br>financial safety</h2>
+      <p>CashGuard is an open-source, privacy-first tool that helps you detect counterfeit currency and understand your financial health — entirely on your device.</p>
+    </div>
+
+    <div class="about-grid">
+      <div class="about-card">
+        <div class="about-card-icon">🛡️</div>
+        <h3>Counterfeit Detection</h3>
+        <p>Upload a photo of any Indian banknote and get an instant AI verdict. The model checks watermarks, security threads, serial numbers, and more — all in under 2 seconds.</p>
+      </div>
+      <div class="about-card">
+        <div class="about-card-icon">📊</div>
+        <h3>Statement Analysis</h3>
+        <p>Upload your Kotak, BHIM UPI, or bank PDF statement. We parse every transaction, categorise it, detect risk patterns, and give you a detailed financial breakdown.</p>
+      </div>
+      <div class="about-card">
+        <div class="about-card-icon">💬</div>
+        <h3>AI Financial Chat</h3>
+        <p>Ask natural questions about your own spending data — "Who did I pay most?" or "Was there any suspicious activity?" — powered by a local AI model via Ollama.</p>
+      </div>
+      <div class="about-card">
+        <div class="about-card-icon">🔍</div>
+        <h3>Security Feature Map</h3>
+        <p>An attention heatmap overlays exactly where the AI focused on your note — watermark, security thread, latent image, Gandhi portrait, and serial number panel.</p>
+      </div>
+      <div class="about-card">
+        <div class="about-card-icon">📈</div>
+        <h3>Health Score</h3>
+        <p>A 0–100 score built from your spending ratio, risk flags, transaction patterns, and recurring payments. Know exactly where you stand financially.</p>
+      </div>
+      <div class="about-card">
+        <div class="about-card-icon">⚡</div>
+        <h3>Instant & Offline</h3>
+        <p>The currency scanner runs entirely in the browser using ONNX Runtime Web — no internet needed after the first load. No data ever leaves your device.</p>
+      </div>
+    </div>
+
+    <div class="about-tech">
+      <h3>Tech Stack</h3>
+      <div class="about-tech-grid">
+        <div class="about-tech-item"><div class="about-tech-name">EfficientNetB0</div><div class="about-tech-desc">Currency classification model</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">ONNX Runtime Web</div><div class="about-tech-desc">In-browser ML inference</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">Tesseract.js</div><div class="about-tech-desc">OCR for text detection</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">FastAPI</div><div class="about-tech-desc">Statement analysis backend</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">pdfplumber</div><div class="about-tech-desc">Bank PDF parser</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">sentence-transformers</div><div class="about-tech-desc">Semantic search for chat</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">Ollama / llama3.2</div><div class="about-tech-desc">Local AI chat & categorisation</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">Focal Loss</div><div class="about-tech-desc">Imbalanced training objective</div></div>
+        <div class="about-tech-item"><div class="about-tech-name">Vanilla JS + Canvas</div><div class="about-tech-desc">Zero-framework frontend</div></div>
+      </div>
+    </div>
+
+    <div class="about-privacy">
+      <div class="about-privacy-icon">🔒</div>
+      <div>
+        <h3>Your data never leaves this device</h3>
+        <p>Currency images are processed in-browser using WebAssembly — never uploaded to any server. Bank statements are analysed by a local Python server running on your own machine. No cloud. No tracking. No accounts.</p>
+      </div>
+    </div>
+
+
+  </section>
+
+  <!-- Privacy -->
+  <div class="privacy-footer">
+    <div class="privacy-item"><div class="privacy-dot"></div>No uploads</div>
+    <div class="privacy-item"><div class="privacy-dot"></div>No servers</div>
+    <div class="privacy-item"><div class="privacy-dot"></div>No tracking</div>
+    <div class="privacy-item"><div class="privacy-dot"></div>100% local</div>
+  </div>
+
+  </div><!-- /page-content -->
+
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    let session = null;
+    const RBI_REQUIRED = ["reserve bank of india","reserve bank","भारतीय रिज़र्व बैंक","bharatiya reserve bank"];
+    const FAKE_WORDS = ["children bank","manoranjan bank","full of fun","churan label","bachon ka bank","bache","fun coupon","not legal tender","play money","prop money","specimen","manoranjan","guaranteed by children","children's bank","toy bank","promise to pay bearer this my heart","sum of one hundred coupon","five hundred coupon","mahatma gandhi coupon","coupon"];
+
+    const REGIONS = {
+      watermark: { crop:[0.02,0.10,0.22,0.90], weight:0.30, name:"Gandhi Watermark", icon:"💧", critical:true, desc:"Gandhi portrait clarity & anti-scan lines", genuineDesc:"Clear Gandhi portrait with light & shade effect. Multi-directional anti-scan lines visible when held to light.", fakeDesc:"Blurry, cartoon-like image. No anti-scan lines. Cannot be seen clearly when held against light.", whyMatters:"The watermark is embedded during paper manufacturing — it cannot be photocopied or printed." },
+      security_thread: { crop:[0.20,0.05,0.32,0.95], weight:0.25, name:"Security Thread", icon:"🧵", critical:true, desc:"Windowed thread with green-blue colour shift", genuineDesc:"Partially exposed thread. Continuous line when held to light. Shifts green to blue. Contains 'Bharat' and 'RBI'.", fakeDesc:"Silver paint pasted to imitate thread. Broken line when held to light. No colour shift.", whyMatters:"The security thread is machine-readable and physically embedded in the paper." },
+      number_panel: { crop:[0.02,0.02,0.45,0.20], weight:0.20, name:"Number Panel", icon:"🔢", critical:false, desc:"Fluorescent serial number with RBI font", genuineDesc:"Fluorescent ink. Bold numbers in unique RBI font. Even spacing. Glows under UV light.", fakeDesc:"Numbers appear small and thin. Uneven spacing. Wrong font. Does not glow under UV.", whyMatters:"RBI uses a proprietary font and fluorescent ink for serial numbers." },
+      latent_image: { crop:[0.55,0.10,0.72,0.90], weight:0.15, name:"Latent Image", icon:"🔍", critical:false, desc:"Hidden denomination at eye level", genuineDesc:"Denomination visible when note held horizontally at eye level. Crisp and clear.", fakeDesc:"Absent in most fakes. If present, appears unclear and smudged.", whyMatters:"The latent image uses intaglio printing at a precise angle — impossible to replicate with standard printers." },
+      gandhi_portrait: { crop:[0.30,0.10,0.65,0.90], weight:0.10, name:"Gandhi Portrait", icon:"🖼️", critical:false, desc:"Sharp intaglio print with raised texture", genuineDesc:"Raised texture felt by touch. Sharp detail in beard and spectacles.", fakeDesc:"Flat printed. Slightly blurry in fine details. Colours may be off.", whyMatters:"Intaglio printing creates raised texture under extreme pressure. Standard printers produce flat ink." },
+    };
+
+    function getAvgColor(el){const R=[[0,0.1,0.3,0.9],[0.35,0.1,0.65,0.9],[0.65,0.1,1,0.9]];let tR=0,tG=0,tB=0;for(const[l,t,r,b]of R){const c=document.createElement('canvas');c.width=80;c.height=60;const x=c.getContext('2d');x.drawImage(el,el.naturalWidth*l,el.naturalHeight*t,el.naturalWidth*(r-l),el.naturalHeight*(b-t),0,0,80,60);const d=x.getImageData(0,0,80,60).data;let rr=0,gg=0,bb=0,n=0;for(let i=0;i<d.length;i+=4){rr+=d[i];gg+=d[i+1];bb+=d[i+2];n++}tR+=rr/n;tG+=gg/n;tB+=bb/n}return{r:tR/3,g:tG/3,b:tB/3}}
+
+    function checkDemonetized(el,ocr){const{r,g,b}=getAvgColor(el);const h500=ocr.includes('500')||ocr.includes('panch sau')||ocr.includes('five hundred');const h1000=ocr.includes('1000')||ocr.includes('one thousand');const h2000=ocr.includes('2000')||ocr.includes('two thousand');const isNew=ocr.includes('swachh bharat')||ocr.includes('red fort')||ocr.includes('mangalyaan');const old500=r>b+15&&r>g+5;if(h500&&old500&&!isNew)return{demonetized:true,type:'demonetized',denomination:'₹500',msg:'This old ₹500 note was demonetized on November 8, 2016. It is NOT legal tender.'};if(h1000)return{demonetized:true,type:'demonetized',denomination:'₹1000',msg:'The ₹1000 note was permanently demonetized on November 8, 2016. It has NO monetary value.'};if(h2000&&r>170&&b>120&&r>g+45)return{demonetized:false,type:'withdrawn',denomination:'₹2000',msg:'₹2000 notes were withdrawn by RBI on May 19, 2023. They remain legal tender but exchange at your nearest bank.'};return{demonetized:false,type:'current'}}
+
+    function preprocessForOCR(el){const c=document.createElement('canvas');const s=Math.max(1,1200/el.naturalWidth);c.width=el.naturalWidth*s;c.height=el.naturalHeight*s;const x=c.getContext('2d');x.drawImage(el,0,0,c.width,c.height);const d=x.getImageData(0,0,c.width,c.height);for(let i=0;i<d.data.length;i+=4){const g=0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];const v=Math.min(255,Math.max(0,(g-128)*1.8+128));d.data[i]=d.data[i+1]=d.data[i+2]=v}x.putImageData(d,0,0);return c}
+
+    let lastOCRResult=null;
+    async function runOCR(el){try{const c=preprocessForOCR(el);const w=await Tesseract.createWorker('eng');await w.setParameters({tessedit_char_whitelist:''});const r=await w.recognize(c);await w.terminate();lastOCRResult=r.data;return r.data.text.toLowerCase().replace(/\n/g,' ').replace(/\s+/g,' ')}catch(e){lastOCRResult=null;return''}}
+
+    function checkText(t){if(!t||t.trim().length<8)return{verdict:'unknown',reason:''};for(const w of FAKE_WORDS)if(t.includes(w))return{verdict:'fake',reason:`Fake text: "${w}"`};const m=t.match(/(\w[\w\s]{2,20})\s+bank\s+of\s+india/g);if(m)for(const x of m)if(!x.includes('reserve'))return{verdict:'fake',reason:`Wrong bank: "${x.trim()}"`};const hasRBI=RBI_REQUIRED.some(k=>t.includes(k));if(t.replace(/\s/g,'').length>30&&!hasRBI)return{verdict:'suspicious',reason:'RBI text not found'};return{verdict:'genuine_text',reason:''}}
+
+    function buildTensor(p){const t=new Float32Array(224*224*3);for(let i=0;i<224*224;i++){t[i*3]=p[i*4];t[i*3+1]=p[i*4+1];t[i*3+2]=p[i*4+2]}return t}
+    function cropRegion(img,l,t,r,b){const c=document.createElement('canvas');c.width=224;c.height=224;c.getContext('2d').drawImage(img,l*img.naturalWidth,t*img.naturalHeight,(r-l)*img.naturalWidth,(b-t)*img.naturalHeight,0,0,224,224);return c.getContext('2d').getImageData(0,0,224,224).data}
+    async function runInference(t){const f={[session.inputNames[0]]:new ort.Tensor('float32',t,[1,224,224,3])};const o=await session.run(f);return o[session.outputNames[0]].data[0]}
+
+    function checkImageQuality(el){const c=document.createElement('canvas');c.width=224;c.height=224;const x=c.getContext('2d');x.drawImage(el,0,0,224,224);const d=x.getImageData(0,0,224,224).data;let br=0;const px=[];for(let i=0;i<d.length;i+=4){const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];px.push(g);br+=g}const avg=br/px.length;let lap=0,ec=0;for(let y=1;y<223;y++)for(let z=1;z<223;z++){const i=y*224+z;const v=Math.abs(-px[i-225]-px[i-224]-px[i-223]-px[i-1]+8*px[i]-px[i+1]-px[i+223]-px[i+224]-px[i+225]);lap+=v;if(v>15)ec++}const sh=lap/px.length,ed=ec/px.length;const issues=[];if(avg<60)issues.push('Too dark');if(avg>230)issues.push('Overexposed');if(sh<3.5)issues.push('Too blurry');if(ed<0.05)issues.push('No note detected');return{passed:!issues.length,issues}}
+
+    async function generateHeatmap(el,base,showOCR){const sec=document.getElementById('heatmapSection');const st=document.getElementById('heatmapStatus');const cv=document.getElementById('heatmapCanvas');sec.classList.add('show');st.textContent='Generating heatmap…';const G=20,P=224/G,map=[];for(let y=0;y<G;y++){const row=[];for(let x=0;x<G;x++){const c=document.createElement('canvas');c.width=224;c.height=224;const ctx=c.getContext('2d');ctx.drawImage(el,0,0,224,224);ctx.fillStyle='rgb(128,128,128)';ctx.fillRect(x*P,y*P,P,P);row.push(Math.abs(base-await runInference(buildTensor(ctx.getImageData(0,0,224,224).data))))}map.push(row);st.textContent=`Generating heatmap… ${Math.round((y+1)/G*100)}%`}const K=[1,4,6,4,1,4,16,24,16,4,6,24,36,24,6,4,16,24,16,4,1,4,6,4,1];const sm=map.map(r=>[...r]);for(let y=0;y<G;y++)for(let x=0;x<G;x++){let s=0,w=0;for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const ny=y+dy,nx=x+dx;if(ny>=0&&ny<G&&nx>=0&&nx<G){const k=K[(dy+2)*5+(dx+2)];s+=map[ny][nx]*k;w+=k}}sm[y][x]=s/w}let mx=0;for(const r of sm)for(const v of r)if(v>mx)mx=v;if(!mx)mx=1;const W=el.naturalWidth,H=el.naturalHeight;cv.width=W;cv.height=H;const ctx=cv.getContext('2d');ctx.drawImage(el,0,0,W,H);const cW=W/G,cH=H/G;for(let y=0;y<G;y++)for(let x=0;x<G;x++){const n=sm[y][x]/mx;let r,g,b;if(n<0.25){r=0;g=Math.round(n*4*255);b=255}else if(n<0.5){r=0;g=255;b=Math.round((0.5-n)*4*255)}else if(n<0.75){r=Math.round((n-0.5)*4*255);g=255;b=0}else{r=255;g=Math.round((1-n)*4*255);b=0}ctx.fillStyle=`rgba(${r},${g},${b},${(0.15+n*0.55).toFixed(2)})`;ctx.fillRect(x*cW,y*cH,cW,cH)}if(showOCR&&lastOCRResult&&lastOCRResult.words){const oS=Math.max(1,1200/el.naturalWidth),sX=W/(el.naturalWidth*oS),sY=H/(el.naturalHeight*oS);for(const w of lastOCRResult.words){const t=w.text.toLowerCase();const isFake=FAKE_WORDS.some(k=>k.split(' ').some(p=>p.length>2&&t.includes(p)));const isBank=t.includes('bank')||t.includes('children')||t.includes('manoranjan')||t.includes('fun')||t.includes('coupon');if(isFake||isBank){const b=w.bbox,bx=b.x0*sX,by=b.y0*sY,bw=(b.x1-b.x0)*sX,bh=(b.y1-b.y0)*sY;ctx.strokeStyle='rgba(255,50,50,0.95)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(bx-4,by-4,bw+8,bh+8,4);ctx.stroke();ctx.fillStyle='rgba(255,0,0,0.2)';ctx.beginPath();ctx.roundRect(bx-4,by-4,bw+8,bh+8,4);ctx.fill()}}st.textContent='Red = high AI focus · Red boxes = suspicious text detected'}else{st.textContent='Red = high AI focus · Blue = low focus'}}
+
+    function generateTextHeatmap(el){const sec=document.getElementById('heatmapSection');const cv=document.getElementById('heatmapCanvas');const st=document.getElementById('heatmapStatus');sec.classList.add('show');const W=el.naturalWidth,H=el.naturalHeight;cv.width=W;cv.height=H;const ctx=cv.getContext('2d');ctx.drawImage(el,0,0,W,H);ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,W,H);const oS=Math.max(1,1200/el.naturalWidth),sX=W/(el.naturalWidth*oS),sY=H/(el.naturalHeight*oS);let any=false;if(lastOCRResult&&lastOCRResult.words)for(const w of lastOCRResult.words){const t=w.text.toLowerCase();const isFake=FAKE_WORDS.some(k=>k.split(' ').some(p=>p.length>2&&t.includes(p)));const isBank=t.includes('bank')||t.includes('children')||t.includes('manoranjan')||t.includes('fun')||t.includes('coupon');if(isFake||isBank){const b=w.bbox,x=b.x0*sX,y=b.y0*sY,bw=(b.x1-b.x0)*sX,bh=(b.y1-b.y0)*sY;ctx.save();ctx.beginPath();ctx.roundRect(x-4,y-4,bw+8,bh+8,4);ctx.clip();ctx.drawImage(el,0,0,W,H);ctx.restore();ctx.strokeStyle='rgba(255,50,50,0.9)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x-4,y-4,bw+8,bh+8,4);ctx.stroke();ctx.fillStyle='rgba(255,0,0,0.15)';ctx.beginPath();ctx.roundRect(x-4,y-4,bw+8,bh+8,4);ctx.fill();any=true}}if(!any){const rH=H*.25;ctx.save();ctx.beginPath();ctx.rect(0,0,W,rH);ctx.clip();ctx.drawImage(el,0,0,W,H);ctx.restore();ctx.strokeStyle='rgba(255,50,50,0.8)';ctx.lineWidth=3;ctx.strokeRect(4,4,W-8,rH-4)}st.textContent='Red boxes = fake/non-RBI text detected by OCR'}
+
+    async function loadModel(){try{ort.env.wasm.wasmPaths='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';session=await ort.InferenceSession.create('currency_classifier.onnx');setStatus('ready','Model loaded — upload a note to scan')}catch(e){setStatus('error','Model not found')}}
+
+    function setStatus(type,text){const el=document.getElementById('previewStatus');const tx=document.getElementById('statusText');el.classList.add('show');tx.textContent=text;el.querySelector('.spinner').style.display=type==='loading'?'block':'none'}
+
+    document.getElementById('fileInput').addEventListener('change',async(e)=>{
+      const file=e.target.files[0];if(!file)return;
+      const url=URL.createObjectURL(file);
+      const preview=document.getElementById('preview');
+      const card=document.getElementById('uploadCard');
+      preview.src=url;preview.style.display='block';card.style.display='none';
+      document.getElementById('resultCard').classList.remove('show');
+      document.getElementById('heatmapSection').classList.remove('show');
+      setStatus('loading','Checking image quality…');
+
+      const img=new Image();
+      img.onload=async()=>{
+        const q=checkImageQuality(img);
+        if(!q.passed){showVerdict('uncertain','📷','POOR QUALITY',q.issues.join(' · '),'Please retake the photo',0,{});return}
+        setStatus('loading','Running AI model + OCR text scan…');
+        const t0=performance.now();
+        const[mr,ocr]=await Promise.all([(async()=>{const c=document.createElement('canvas');c.width=224;c.height=224;c.getContext('2d').drawImage(img,0,0,224,224);const fp=c.getContext('2d').getImageData(0,0,224,224).data;const fr=await runInference(buildTensor(fp));const rr={};let ws=0;for(const[k,R]of Object.entries(REGIONS)){const[l,t,r,b]=R.crop;const p=cropRegion(img,l,t,r,b);const raw=await runInference(buildTensor(p));rr[k]={raw,label:raw>=.5?'genuine':'fake',conf:raw>=.5?raw:1-raw};ws+=raw*R.weight}return{fullRaw:fr,regionResults:rr,weightedSum:ws}})(),runOCR(img)]);
+        const lat=Math.round(performance.now()-t0);
+        const tc=checkText(ocr);const dc=checkDemonetized(img,ocr);
+        const TH=0.78;let label,icon,msg,cls,conf,method;
+        if(tc.verdict==='fake'){label='COUNTERFEIT';icon='❌';cls='fake';conf=0.99;msg=`This is NOT an RBI note. ${tc.reason}. Do not accept.`;method='Text scan'}
+        else if(tc.verdict==='suspicious'){label='SUSPICIOUS';icon='❌';cls='fake';conf=0.92;msg=`${tc.reason}. Every genuine note says "Reserve Bank of India".`;method='Text scan'}
+        else if(dc.type==='demonetized'){label='DEMONETIZED';icon='🚫';cls='demonetized';conf=0.95;msg=dc.msg;method='Series detection'}
+        else if(dc.type==='withdrawn'){label='WITHDRAWN';icon='⚠️';cls='uncertain';conf=0.90;msg=dc.msg;method='Series detection'}
+        else if(mr.fullRaw>=TH){label='GENUINE';icon='✅';cls='genuine';conf=mr.fullRaw;msg='This note appears genuine. Security features are consistent with an authentic RBI note.';method='AI model'}
+        else if(mr.fullRaw<=1-TH){label='COUNTERFEIT';icon='❌';cls='fake';conf=1-mr.fullRaw;msg='Visual analysis flagged this as counterfeit. Do not accept.';method='AI model'}
+        else{label='UNCERTAIN';icon='⚠️';cls='uncertain';conf=Math.max(mr.fullRaw,1-mr.fullRaw);msg='Not confident enough. Try a clearer, well-lit photo.';method='AI model'}
+        showVerdict(cls,icon,label,msg,`${(conf*100).toFixed(1)}% confidence · ${lat}ms · ${method}`,conf,mr.regionResults);
+        generateHeatmap(img,mr.fullRaw,tc.verdict==='fake'||tc.verdict==='suspicious');
+      };img.src=url;
+    });
+
+    function showVerdict(cls,icon,label,msg,meta,conf,regions){
+      const card=document.getElementById('resultCard');card.classList.add('show');
+      document.getElementById('resultHeader').className='result-header '+cls;
+      document.getElementById('resultIconWrap').className='result-icon-wrap '+cls;
+      document.getElementById('resultIcon').textContent=icon;
+      document.getElementById('resultLabel').textContent=label;
+      document.getElementById('resultMeta').innerHTML=meta.split('·').map(s=>`<span>${s.trim()}</span>`).join('');
+      document.getElementById('resultMsg').textContent=msg;
+      const bar=document.getElementById('confBar');bar.className='conf-fill '+cls;bar.style.width=`${conf*100}%`;
+      setStatus('done','Scan complete');
+
+      const ctr=document.getElementById('featureRows');ctr.innerHTML='';
+      const isG=label==='GENUINE'&&conf>=0.78,isD=label==='DEMONETIZED'||label==='WITHDRAWN',isF=label==='COUNTERFEIT'||label==='SUSPICIOUS';
+      let worst=null,wc=0;if(isF&&regions)for(const[k,r]of Object.entries(regions))if(r.label==='fake'&&r.conf>wc&&REGIONS[k].critical){wc=r.conf;worst=k}
+
+      for(const[key,R]of Object.entries(REGIONS)){
+        const r=regions?regions[key]:{label:'fake',conf:0.99};
+        let dl,bt,cp;
+        if(isG){dl='genuine';bt='PASS';cp=Math.round(conf*100)}
+        else if(isD){dl='fake';bt='FAIL';cp=99}
+        else if(isF){dl=r.conf<.55?'uncertain':r.label;bt=dl==='uncertain'?'CHECK':dl==='genuine'?'PASS':'FAIL';cp=Math.round(r.conf*100)}
+        else{dl=r.conf<.6?'uncertain':r.label;bt=dl==='uncertain'?'CHECK':dl==='genuine'?'PASS':'FAIL';cp=Math.round(r.conf*100)}
+        const isCrit=key===worst&&isF;
+        const why=isG?R.genuineDesc:isD?'Demonetized — all features invalid.':dl==='fake'?R.fakeDesc:dl==='uncertain'?'Could not determine — try a clearer photo.':R.genuineDesc;
+        const div=document.createElement('div');div.className=`feat${isCrit?' critical':''}`;
+        div.innerHTML=`
+          <div class="feat-top" onclick="this.parentElement.classList.toggle('expanded')">
+            <div class="feat-icon">${R.icon}</div>
+            <div style="flex:1"><div class="feat-name">${isCrit?'<span class="feat-critical-tag">MOST SUSPICIOUS</span>':''}${R.name}</div><div class="feat-desc">${R.desc}</div></div>
+            <div class="feat-right"><div class="feat-badge ${dl}">${bt}</div><div class="feat-conf">${cp}%</div></div>
+          </div>
+          <div class="feat-detail">
+            <div class="feat-detail-bar"><div class="feat-detail-fill ${dl}" style="width:${cp}%"></div></div>
+            <div class="feat-why">${why}</div>
+            <div class="feat-compare"><div class="cmp g"><div class="cmp-label g">Genuine</div>${R.genuineDesc}</div><div class="cmp f"><div class="cmp-label f">Fake</div>${R.fakeDesc}</div></div>
+            <div class="feat-matters"><strong>Why it matters:</strong> ${R.whyMatters}</div>
+          </div>`;
+        ctr.appendChild(div);
+      }
+    }
+
+    loadModel();
+
+    /* ════════════════════════════════════════════════════════════════
+       MODE SWITCHER
+    ════════════════════════════════════════════════════════════════ */
+    /* ── Navigation ─────────────────────────────────────────────── */
+    function navGo(page) {
+      // Update active nav link
+      ['navScan','navStmt','navHealth','navAbout'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('nav-active');
+      });
+      const activeMap = { scan:'navScan', statements:'navStmt', health:'navHealth', about:'navAbout' };
+      const activeEl = document.getElementById(activeMap[page]);
+      if (activeEl) activeEl.classList.add('nav-active');
+
+      const scannerEl   = document.querySelector('.scanner-section');
+      const finEl       = document.getElementById('finSection');
+      const aboutEl     = document.getElementById('aboutSection');
+      const privacyEl   = document.querySelector('.privacy-footer');
+      const heroEl      = document.querySelector('.hero');
+      const tabScan     = document.getElementById('tabScan');
+      const tabHealth   = document.getElementById('tabHealth');
+
+      // Hide everything first
+      scannerEl.style.display  = 'none';
+      finEl.classList.remove('show');
+      aboutEl.classList.remove('show');
+      privacyEl.style.display  = 'none';
+      heroEl.style.display     = 'none';
+
+      if (page === 'scan') {
+        heroEl.style.display = '';
+        scannerEl.style.display = '';
+        privacyEl.style.display = '';
+        tabScan.classList.add('active');
+        tabHealth.classList.remove('active');
+        document.getElementById('heroEyebrow').textContent = 'Currency Authentication';
+        document.getElementById('heroTitle').innerHTML = 'Verify any Indian<br>banknote instantly';
+        document.getElementById('heroSub').textContent = 'AI-powered counterfeit detection that runs entirely in your browser. Upload a photo — get an instant verdict with detailed security feature analysis.';
+        document.getElementById('heroStats').style.display = '';
+
+      } else if (page === 'statements') {
+        heroEl.style.display = '';
+        finEl.classList.add('show');
+        tabHealth.classList.add('active');
+        tabScan.classList.remove('active');
+        document.getElementById('heroEyebrow').textContent = 'Statement Analysis';
+        document.getElementById('heroTitle').innerHTML = 'Analyse your<br>bank statement';
+        document.getElementById('heroSub').textContent = 'Upload your Kotak, BHIM UPI or bank PDF. Every transaction is parsed, categorised, and risk-checked — 100% locally.';
+        document.getElementById('heroStats').style.display = 'none';
+        // Scroll to upload if no data loaded yet
+        if (!finData) setTimeout(() => document.getElementById('finUploadWrap')?.scrollIntoView({behavior:'smooth', block:'center'}), 100);
+
+      } else if (page === 'health') {
+        heroEl.style.display = '';
+        finEl.classList.add('show');
+        tabHealth.classList.add('active');
+        tabScan.classList.remove('active');
+        document.getElementById('heroEyebrow').textContent = 'Financial Health Score';
+        document.getElementById('heroTitle').innerHTML = 'Know exactly where<br>your money goes';
+        document.getElementById('heroSub').textContent = 'Your personalised 0–100 health score based on spending ratio, risk patterns, and recurring transactions.';
+        document.getElementById('heroStats').style.display = 'none';
+        // Scroll to score banner if data is loaded
+        if (finData) setTimeout(() => document.querySelector('.fin-score-banner')?.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+        else setTimeout(() => document.getElementById('finUploadWrap')?.scrollIntoView({behavior:'smooth', block:'center'}), 100);
+
+      } else if (page === 'about') {
+        aboutEl.classList.add('show');
+        tabScan.classList.remove('active');
+        tabHealth.classList.remove('active');
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function switchMode(mode) {
+      navGo(mode === 'scan' ? 'scan' : 'health');
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       FINANCIAL HEALTH — FULL DASHBOARD
+    ════════════════════════════════════════════════════════════════ */
+    const FIN_API = 'http://127.0.0.1:8000';
+    let finData = null;
+
+    const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+
+    function finStep(id, state) { // state: 'active'|'done'|''
+      const el = document.getElementById(id);
+      if (el) el.className = 'fin-step ' + state;
+    }
+
+    document.getElementById('finFileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('finUploadWrap').style.display = 'none';
+      document.getElementById('finResults').classList.remove('show');
+      const loadEl = document.getElementById('finLoading');
+      loadEl.classList.add('show');
+      ['fstep1','fstep2','fstep3','fstep4'].forEach(s => finStep(s, ''));
+
+      try {
+        // Step 1 — parse + categorise
+        finStep('fstep1','active');
+        document.getElementById('finLoadingTitle').textContent = 'Parsing transactions…';
+        document.getElementById('finLoadingSub').textContent = file.name;
+        const fd1 = new FormData(); fd1.append('file', file);
+        const r1 = await fetch(`${FIN_API}/analyze`, { method:'POST', body:fd1 });
+        if (!r1.ok) { const eb = await r1.json().catch(()=>({})); throw new Error(eb.detail || `Server error ${r1.status}`); }
+        const basic = await r1.json();
+        finStep('fstep1','done'); finStep('fstep2','active');
+
+        // Step 2 — AI forensic guess (fire-and-forget, don't block on failure)
+        document.getElementById('finLoadingTitle').textContent = 'Categorising entities…';
+        await fetch(`${FIN_API}/analyze/ai`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ transactions: basic.transactions })
+        }).catch(()=>{});
+        finStep('fstep2','done'); finStep('fstep3','active');
+
+        // Step 3 — final analysis
+        document.getElementById('finLoadingTitle').textContent = 'Building your report…';
+        const fd2 = new FormData(); fd2.append('file', file);
+        const r3 = await fetch(`${FIN_API}/analyze`, { method:'POST', body:fd2 });
+        finData = await r3.json();
+        finStep('fstep3','done'); finStep('fstep4','done');
+
+        loadEl.classList.remove('show');
+        renderFinResults(finData);
+        document.getElementById('finResults').classList.add('show');
+
+      } catch (err) {
+        loadEl.classList.remove('show');
+        document.getElementById('finUploadWrap').style.display = '';
+        alert(`❌ ${err.message}\n\nMake sure the backend is running:\ncd acmintra_ref/backend/statement\npython -m uvicorn main:app --port 8000`);
+      }
+      e.target.value = '';
+    });
+
+    function finReset() {
+      document.getElementById('finResults').classList.remove('show');
+      document.getElementById('finUploadWrap').style.display = '';
+      finData = null;
+    }
+
+    /* ── Render everything ──────────────────────────────────── */
+    function renderFinResults(d) {
+      const txs = d.transactions || [];
+      const prof = d.profile || {};
+      const health = d.health || {};
+      const risk = d.risk || {};
+
+      const totalDr = prof.total_dr || 0;
+      const totalCr = prof.total_cr || 0;
+      const net = totalCr - totalDr;
+      const savingsRate = totalCr > 0 ? Math.round((net / totalCr) * 100) : 0;
+
+      const sumCat = (cat, drcr) => txs
+        .filter(t => t.category === cat && (drcr === 'ALL' || t.drcr === drcr))
+        .reduce((s,t) => s + t.amount, 0);
+
+      // ── Score ring ──
+      const hs = health.health_score || 0;
+      const circumference = 2 * Math.PI * 36; // r=36
+      const offset = circumference - (hs / 100) * circumference;
+      const arc = document.getElementById('finScoreArc');
+      arc.style.strokeDashoffset = circumference;
+      arc.style.transition = 'none';
+      const scoreColor = hs > 70 ? '#22c55e' : hs > 45 ? '#eab308' : '#ef4444';
+      arc.style.stroke = scoreColor;
+      setTimeout(() => { arc.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(.4,0,.2,1)'; arc.style.strokeDashoffset = offset; }, 50);
+      const scoreNum = document.getElementById('finScoreNum');
+      scoreNum.textContent = hs;
+      scoreNum.style.color = scoreColor;
+      const labels = ['', 'Critical', 'Poor', 'Fair', 'Good', 'Excellent'];
+      const lIdx = hs > 80 ? 5 : hs > 60 ? 4 : hs > 40 ? 3 : hs > 20 ? 2 : 1;
+      document.getElementById('finScoreLabel').textContent = labels[lIdx] + ' Financial Health';
+      document.getElementById('finScoreDesc').textContent =
+        hs > 70 ? 'Your finances look healthy. Keep maintaining this balance.' :
+        hs > 45 ? 'There\'s room for improvement. Review your spending habits.' :
+                  'High spending or risk detected. Consider reducing discretionary spend.';
+
+      document.getElementById('finBannerCr').textContent = fmt(totalCr);
+      document.getElementById('finBannerDr').textContent = fmt(totalDr);
+      const netEl = document.getElementById('finBannerNet');
+      netEl.textContent = (net >= 0 ? '+' : '') + fmt(net);
+      netEl.className = 'fin-score-stat-val ' + (net >= 0 ? 'green' : 'red');
+
+      // ── KPIs ──
+      document.getElementById('kpiTxCount').textContent = txs.length;
+      document.getElementById('kpiAvgTx').textContent = fmt(prof.avg_transaction || 0);
+      document.getElementById('kpiPersonDr').textContent = fmt(sumCat('person','DR'));
+      document.getElementById('kpiMerchant').textContent = fmt(sumCat('merchant','ALL'));
+      const savEl = document.getElementById('kpiSavings');
+      savEl.textContent = savingsRate + '%';
+      savEl.className = 'fin-kpi-val ' + (savingsRate > 20 ? 'green' : savingsRate > 0 ? '' : 'red');
+      document.getElementById('finTxCount').textContent = `${txs.length} transactions`;
+
+      // ── Ledger ──
+      document.getElementById('finTxBody').innerHTML = txs.map(tx => `
+        <tr>
+          <td style="color:var(--text-muted);font-family:monospace;font-size:10px;white-space:nowrap">${tx.date}</td>
+          <td>
+            <div class="tx-name">${tx.display_name || 'Unknown'}</div>
+            <div class="tx-ref">${(tx.payment_id||'').slice(0,22)}</div>
+          </td>
+          <td style="text-align:right;white-space:nowrap" class="${tx.drcr==='DR'?'tx-amt-dr':'tx-amt-cr'}">
+            ${tx.drcr==='DR'?'−':'+'}₹${tx.amount.toLocaleString('en-IN')}
+          </td>
+          <td><span class="fin-cat ${tx.category}">${tx.category}</span></td>
+        </tr>`).join('');
+
+      // ── Donut chart ──
+      const cats = ['person','merchant','others','unknown'];
+      const catColors = { person:'#818cf8', merchant:'#22d3ee', others:'#6b7280', unknown:'#eab308' };
+      const catAmts = {};
+      let donutTotal = 0;
+      cats.forEach(c => { catAmts[c] = sumCat(c,'DR'); donutTotal += catAmts[c]; });
+      if (donutTotal === 0) donutTotal = 1;
+      const R = 52, cx = 70, cy = 70;
+      const circ = 2 * Math.PI * R;
+      let svg = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="16"/>`;
+      let cumAngle = -Math.PI / 2;
+      cats.forEach(c => {
+        if (catAmts[c] === 0) return;
+        const frac = catAmts[c] / donutTotal;
+        const angle = frac * 2 * Math.PI;
+        const x1 = cx + R * Math.cos(cumAngle), y1 = cy + R * Math.sin(cumAngle);
+        cumAngle += angle;
+        const x2 = cx + R * Math.cos(cumAngle), y2 = cy + R * Math.sin(cumAngle);
+        const large = angle > Math.PI ? 1 : 0;
+        svg += `<path d="M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${catColors[c]}" stroke-width="16" stroke-linecap="butt"/>`;
+      });
+      document.getElementById('finDonutSvg').innerHTML = svg;
+      document.getElementById('finDonutLegend').innerHTML = cats
+        .filter(c => catAmts[c] > 0)
+        .map(c => `<div class="fin-legend-row">
+          <div class="fin-legend-left"><div class="fin-legend-dot" style="background:${catColors[c]}"></div><span class="fin-legend-label">${c.charAt(0).toUpperCase()+c.slice(1)}</span></div>
+          <span class="fin-legend-pct">${Math.round(catAmts[c]/donutTotal*100)}%</span>
+        </div>`).join('');
+
+      // ── Top recipients bars ──
+      const recipMap = {};
+      txs.filter(t => t.drcr==='DR').forEach(t => {
+        const n = t.display_name || 'Unknown';
+        recipMap[n] = (recipMap[n]||0) + t.amount;
+      });
+      const topRecip = Object.entries(recipMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+      const maxAmt = topRecip[0]?.[1] || 1;
+      const barColors = ['#818cf8','#22d3ee','#f59e0b','#22c55e','#f97316','#ec4899'];
+      document.getElementById('finTopBars').innerHTML = topRecip.map(([name,amt],i) => `
+        <div class="fin-bar-row">
+          <div class="fin-bar-top">
+            <span class="fin-bar-name">${name}</span>
+            <span class="fin-bar-amt">${fmt(amt)}</span>
+          </div>
+          <div class="fin-bar-track">
+            <div class="fin-bar-fill" style="width:0%;background:${barColors[i%barColors.length]}" data-w="${Math.round(amt/maxAmt*100)}"></div>
+          </div>
+        </div>`).join('');
+      setTimeout(() => {
+        document.querySelectorAll('.fin-bar-fill').forEach(el => { el.style.width = el.dataset.w + '%'; });
+      }, 80);
+
+      // ── Insights ──
+      const insightMap = txt => {
+        const lo = txt.toLowerCase();
+        if (lo.includes('healthy') || lo.includes('good')) return {icon:'✅', cls:'good'};
+        if (lo.includes('high') || lo.includes('spike') || lo.includes('mule') || lo.includes('structur')) return {icon:'🚨', cls:'bad'};
+        if (lo.includes('consider') || lo.includes('watch') || lo.includes('difficult')) return {icon:'⚠️', cls:'warn'};
+        if (lo.includes('split') || lo.includes('contribution')) return {icon:'🔄', cls:''};
+        return {icon:'💡', cls:''};
+      };
+      const allInsights = [...(health.insights||[])];
+      if (risk.flags && risk.flags.length) risk.flags.forEach(f => allInsights.push(f));
+      document.getElementById('finInsightList').innerHTML = allInsights.length
+        ? allInsights.map(ins => { const {icon,cls} = insightMap(ins); return `<div class="fin-insight-item ${cls}"><span class="fi-icon">${icon}</span>${ins}</div>`; }).join('')
+        : '<div class="fin-insight-item good"><span class="fi-icon">✅</span>No issues detected in this statement period.</div>';
+
+      // ── Chat ──
+      const msgsEl = document.getElementById('finChatMsgs');
+      msgsEl.innerHTML = '';
+      finBubble('bot', `✅ ${txs.length} transactions analysed — Health Score ${hs}/100. Ask me anything!`);
+      const chips = ['Who did I pay most?','What\'s my biggest expense?','How much did I receive?','Any suspicious activity?'];
+      document.getElementById('finChatChips').innerHTML = chips.map(c =>
+        `<span class="fin-chat-chip" onclick="finAskChip('${c}')">${c}</span>`).join('');
+    }
+
+    function finAskChip(text) {
+      document.getElementById('finChatInput').value = text;
+      document.querySelector('.fin-chat-form').dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
+    }
+
+    async function finSendChat(e) {
+      e.preventDefault();
+      const input = document.getElementById('finChatInput');
+      const q = input.value.trim(); if (!q) return;
+      input.value = '';
+      finBubble('user', q);
+      document.getElementById('finChatChips').style.display = 'none';
+      const typing = document.getElementById('finChatTyping');
+      typing.classList.add('show');
+      try {
+        const res = await fetch(`${FIN_API}/chat`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ query: q })
+        });
+        const result = await res.json();
+        finBubble('bot', result.answer);
+      } catch {
+        finBubble('bot', '⚠️ AI chat requires Ollama. Basic analysis above is still fully available.');
+      }
+      typing.classList.remove('show');
+    }
+
+    function finBubble(role, text) {
+      const msgs = document.getElementById('finChatMsgs');
+      const div = document.createElement('div');
+      div.className = `fin-bubble ${role}`;
+      div.textContent = text;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+  </script>
+</body>
+</html>
