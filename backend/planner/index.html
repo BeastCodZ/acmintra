@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Purchase Planner</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+body{
+    background:
+        radial-gradient(circle at top left,#312e81 0%,transparent 30%),
+        radial-gradient(circle at bottom right,#0f766e 0%,transparent 30%),
+        #020617;
+}
+.glass{
+    backdrop-filter: blur(18px);
+    background: rgba(15,23,42,.72);
+}
+input,select{
+    outline:none;
+}
+</style>
+</head>
+
+<body class="text-white min-h-screen">
+
+<div class="max-w-6xl mx-auto px-6 py-10">
+
+    <div class="mb-8">
+        <h1 class="text-5xl font-black">
+            💸 Purchase Planner
+        </h1>
+
+        <p class="text-slate-400 mt-3">
+            Analyze whether you should buy now, wait, or avoid the purchase
+            based on your finances.
+        </p>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-8">
+
+        <!-- FORM -->
+
+        <div class="glass rounded-3xl border border-slate-700 p-8">
+
+            <h2 class="text-2xl font-bold mb-6">
+                Purchase Details
+            </h2>
+
+            <div class="space-y-4">
+
+                <input
+                    id="name"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Gaming Laptop"
+                >
+
+                <input
+                    id="price"
+                    type="number"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Item Price"
+                >
+
+                <select
+                    id="category"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                >
+                    <option value="electronics">💻 Electronics</option>
+                    <option value="vehicle">🚗 Vehicle</option>
+                    <option value="property">🏠 Property</option>
+                    <option value="education">🎓 Education</option>
+                    <option value="misc">📦 Miscellaneous</option>
+                </select>
+
+                <select
+                    id="payment"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    onchange="toggleEMI()"
+                >
+                    <option value="cash">💵 Cash</option>
+                    <option value="emi">💳 EMI</option>
+                </select>
+
+            </div>
+
+            <hr class="my-8 border-slate-700">
+
+            <h2 class="text-2xl font-bold mb-6">
+                Your Finances
+            </h2>
+
+            <div class="space-y-4">
+
+                <input
+                    id="balance"
+                    type="number"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Current Balance"
+                >
+
+                <input
+                    id="income"
+                    type="number"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Monthly Income"
+                >
+
+                <input
+                    id="expenses"
+                    type="number"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Monthly Expenses"
+                >
+
+            </div>
+
+            <div
+                id="emiSection"
+                class="hidden mt-8 space-y-4"
+            >
+
+                <h2 class="text-xl font-bold">
+                    EMI Details
+                </h2>
+
+                <input
+                    id="months"
+                    type="number"
+                    value="12"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Loan Tenure (Months)"
+                >
+
+                <input
+                    id="interest"
+                    type="number"
+                    value="12"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Interest Rate (%)"
+                >
+
+                <input
+                    id="down"
+                    type="number"
+                    value="0"
+                    class="w-full bg-slate-900 rounded-xl p-4"
+                    placeholder="Down Payment"
+                >
+
+            </div>
+
+            <button
+                onclick="analyze()"
+                class="mt-8 w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 transition p-4 text-lg font-bold"
+            >
+                Analyze Purchase
+            </button>
+
+        </div>
+
+        <!-- RESULT -->
+
+        <div
+    id="resultCard"
+    class="glass rounded-3xl border border-slate-700 p-8 hidden"
+>
+
+    <div class="flex items-center justify-between">
+
+        <div>
+            <h2 class="text-xl text-slate-400">
+                Recommendation
+            </h2>
+
+            <div
+                id="recommendation"
+                class="text-5xl font-black mt-2"
+            >
+            </div>
+        </div>
+
+        <div class="text-right">
+            <div class="text-slate-400">
+                Score
+            </div>
+
+            <div
+                id="score"
+                class="text-4xl font-black"
+            ></div>
+        </div>
+
+    </div>
+
+    <div class="w-full bg-slate-800 rounded-full h-3 mt-6 overflow-hidden">
+        <div
+            id="scoreBar"
+            class="h-full rounded-full transition-all duration-700"
+            style="width:0%"
+        ></div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mt-8">
+
+        <div class="bg-slate-900 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm">
+                Monthly Savings
+            </div>
+
+            <div
+                id="savings"
+                class="text-2xl font-bold mt-2"
+            ></div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm">
+                Best Payment
+            </div>
+
+            <div
+                id="bestPayment"
+                class="text-2xl font-bold mt-2"
+            ></div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm">
+                Monthly EMI
+            </div>
+
+            <div
+                id="emi"
+                class="text-2xl font-bold mt-2"
+            ></div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm">
+                Interest Paid
+            </div>
+
+            <div
+                id="interestPaid"
+                class="text-2xl font-bold mt-2"
+            ></div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm">
+                Buy After
+            </div>
+
+            <div
+                id="monthsText"
+                class="text-2xl font-bold mt-2"
+            ></div>
+        </div>
+
+        <div class="bg-slate-900 p-5 rounded-xl">
+            <div class="text-slate-400 text-sm">
+                Remaining Balance
+            </div>
+
+            <div
+                id="remainingBalance"
+                class="text-2xl font-bold mt-2"
+            ></div>
+        </div>
+
+    </div>
+
+    <div class="mt-8">
+
+        <h3 class="font-bold text-xl mb-3">
+            Reasons
+        </h3>
+
+        <ul
+            id="reasons"
+            class="space-y-2"
+        ></ul>
+
+    </div>
+
+    <div class="mt-8">
+
+        <h3 class="font-bold text-xl mb-3">
+            Tips
+        </h3>
+
+        <ul
+            id="tips"
+            class="space-y-2"
+        ></ul>
+
+    </div>
+
+    <div class="mt-8">
+
+        <h3 class="font-bold text-xl mb-3 text-yellow-400">
+            Warnings
+        </h3>
+
+        <ul
+            id="warnings"
+            class="space-y-2"
+        ></ul>
+
+    </div>
+
+</div>
+
+    </div>
+
+</div>
+
+<script>
+
+function toggleEMI(){
+
+    const payment =
+        document.getElementById("payment").value;
+
+    const emi =
+        document.getElementById("emiSection");
+
+    emi.classList.toggle(
+        "hidden",
+        payment !== "emi"
+    );
+
+}
+
+async function analyze(){
+
+    const payload = {
+
+        current_balance:
+            Number(document.getElementById("balance").value),
+
+        monthly_income:
+            Number(document.getElementById("income").value),
+
+        monthly_expenses:
+            Number(document.getElementById("expenses").value),
+
+        item_name:
+            document.getElementById("name").value,
+
+        item_price:
+            Number(document.getElementById("price").value),
+
+        category:
+            document.getElementById("category").value,
+
+        payment_type:
+            document.getElementById("payment").value,
+
+        emi_months:
+            Number(document.getElementById("months").value),
+
+        interest_rate:
+            Number(document.getElementById("interest").value),
+
+        down_payment:
+            Number(document.getElementById("down").value)
+
+    };
+
+    const res = await fetch(
+        "http://127.0.0.1:8000/analyze",
+        {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify(payload)
+        }
+    );
+
+    const data = await res.json();
+
+    console.log(data);
+
+    resultCard.classList.remove("hidden");
+
+    recommendation.innerText =
+        data.recommendation ?? "UNKNOWN";
+
+    recommendation.className =
+        "text-5xl font-black mt-2 " +
+        (
+            data.recommendation === "BUY NOW"
+            ? "text-green-400"
+            : data.recommendation === "WAIT"
+            ? "text-yellow-400"
+            : "text-red-400"
+        );
+
+    const score =
+        Number(data.financial_readiness_score ?? 0);
+
+    scoreBar.style.width =
+        score + "%";
+
+    scoreBar.className =
+        "h-full rounded-full " +
+        (
+            score >= 85
+            ? "bg-green-500"
+            : score >= 60
+            ? "bg-yellow-500"
+            : "bg-red-500"
+        );
+
+    document.getElementById("score").innerText =
+        score + "/100";
+
+    savings.innerText =
+        "₹" +
+        Number(data.monthly_savings ?? 0)
+        .toFixed(2);
+
+    bestPayment.innerText =
+        data.best_payment_option ?? "-";
+
+    emi.innerText =
+        data.monthly_emi != null
+        ? "₹" +
+          Number(data.monthly_emi)
+          .toFixed(2)
+        : "—";
+
+    interestPaid.innerText =
+        "₹" +
+        Number(data.total_interest ?? 0)
+        .toFixed(2);
+
+    monthsText.innerText =
+        data.months_until_affordable == null
+        ? "Now"
+        : data.months_until_affordable;
+
+    remainingBalance.innerText =
+        "₹" +
+        (
+            Number(payload.current_balance)
+            -
+            Number(payload.item_price)
+        ).toFixed(2);
+
+    reasons.innerHTML = "";
+
+    (data.reasons ?? []).forEach(r=>{
+
+        reasons.innerHTML +=
+        `
+        <li class="bg-slate-900 p-3 rounded-lg">
+            ${r}
+        </li>
+        `;
+
+    });
+
+    tips.innerHTML = "";
+
+    (data.tips ?? []).forEach(t=>{
+
+        tips.innerHTML +=
+        `
+        <li class="bg-green-950/30 p-3 rounded-lg">
+            ${t}
+        </li>
+        `;
+
+    });
+
+    warnings.innerHTML = "";
+
+    (data.warnings ?? []).forEach(w=>{
+
+        warnings.innerHTML +=
+        `
+        <li class="bg-yellow-950/30 p-3 rounded-lg">
+            ${w}
+        </li>
+        `;
+
+    });
+
+}
+toggleEMI();
+
+</script>
+
+</body>
+</html>
