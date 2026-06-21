@@ -1,8 +1,13 @@
-# CashGuard — Trust your cash. Understand your money. Privately.
+<img width="128" height="128" alt="Untitled-1" src="https://github.com/user-attachments/assets/1c7177c2-3986-4b5e-97c6-da0aa69eff75" />
+
+
+# CashGuard
 
 CashGuard is a privacy-first mobile companion for India that combines real-time counterfeit currency detection with on-device financial health analysis. No accounts. No cloud. Everything runs on your phone.
 
 Built at ACM Intra Hackathon 2026.
+
+*Trust your cash. Understand your money. Privately.*
 
 ---
 
@@ -27,10 +32,10 @@ Point your camera at any Indian currency note. CashGuard returns a **Genuine / F
 
 ### Pillar 2 — Financial Health Analysis
 
-Upload a bank or UPI statement PDF. Everything — parsing, classification, scoring — runs locally on your device.
+Upload a bank or UPI statement PDF. Parsing, classification, scoring — runs locally on your device.
 
 **How it works:**
-- **Balance-arithmetic parser**: reconstructs debit/credit direction from running balance deltas — works across all Indian bank statement formats including Kotak's cell-per-line Syncfusion extraction
+- **Balance-arithmetic parser**: reconstructs debit/credit direction from running balance deltas — works across Indian bank and Kotak bank statements.
 - **Flow classification** (`income`, `refund`, `spend`, `transfer`, `investment`) with investment keyword matching for ASBA, AMC, broker names
 - **0–100 health score** with a confidence rating derived from data coverage and parser certainty
 - **Cash-flow breakdown**: animated income vs spend dual-tone bar, savings rate, net this period
