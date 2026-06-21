@@ -1,7 +1,4 @@
-<img width="128" height="128" alt="Untitled-1" src="https://github.com/user-attachments/assets/1c7177c2-3986-4b5e-97c6-da0aa69eff75" />
-
-
-# CashGuard
+# <img width="128" src="https://github.com/user-attachments/assets/1c7177c2-3986-4b5e-97c6-da0aa69eff75" />
 
 CashGuard is a privacy-first mobile companion for India that combines real-time counterfeit currency detection with on-device financial health analysis. No accounts. No cloud. Everything runs on your phone.
 
